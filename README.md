@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-<img src="src/docs/banner.gif" alt="Banner" width="100%" style="border-radius: 10px; box-shadow: 0 0 30px rgba(0, 229, 255, 0.3); border: 1px solid rgba(0, 229, 255, 0.1);" />
+<img src="public/banner.gif" alt="Banner" width="100%" style="border-radius: 10px; box-shadow: 0 0 30px rgba(0, 229, 255, 0.3); border: 1px solid rgba(0, 229, 255, 0.1);" />
 </p>
 
 <h1 align="center">
