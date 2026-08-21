@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdge, GraphMode, GraphNode, LayoutMode } from "../types/graph";
 import { nextLabel } from "../lib/labels";
 import { NODE_RADIUS, MIN_DIST, clampToBounds, resolveCollisions, resolveAllCollisions } from "../lib/layout";
+import { computeDfsClassification, type EdgeType } from "../lib/dfsClassify";
+
+const EDGE_TYPE_META: Record<EdgeType, { letter: string; color: string; label: string }> = {
+  tree: { letter: "A", color: "#2f9e44", label: "Árvore" },
+  back: { letter: "R", color: "#e03131", label: "Retorno" },
+  forward: { letter: "V", color: "#1971c2", label: "Avanço" },
+  cross: { letter: "C", color: "#9c36b5", label: "Cruzamento" },
+};
 
 const TIP_HIT_RADIUS = 13;
 const ATTRACT_STRENGTH = 0.012;
@@ -17,13 +25,30 @@ function unitVector(from: GraphNode, to: GraphNode) {
   return { x: dx / len, y: dy / len, len };
 }
 
+function perpOffset(ax: number, ay: number, bx: number, by: number, dist: number) {
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2;
+  const uv = unitVector({ x: ax, y: ay } as GraphNode, { x: bx, y: by } as GraphNode);
+  const nx = -uv.y;
+  const ny = uv.x;
+  return { x: mx + nx * dist, y: my + ny * dist };
+}
+
 interface Props {
   mode: GraphMode;
   layoutMode: LayoutMode;
+  showClassification: boolean;
+  showTimes: boolean;
   onStats?: (stats: { nodes: number; edges: number }) => void;
 }
 
-export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
+export default function GraphCanvas({
+  mode,
+  layoutMode,
+  showClassification,
+  showTimes,
+  onStats,
+}: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -44,7 +69,6 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
     startY: number;
     moved: boolean;
   } | null>(null);
-
   const ignoreNextBgClick = useRef(false);
 
   useEffect(() => {
@@ -69,6 +93,15 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
       ),
     [edges]
   );
+
+  const nodeIdKey = nodes.map((n) => n.id).join(",");
+  const edgeKey = edges
+    .map((e) => `${e.id}:${e.a}:${e.b}:${e.forward ? 1 : 0}:${e.backward ? 1 : 0}`)
+    .join("|");
+  const dfs = useMemo(() => {
+    const ids = nodeIdKey ? nodeIdKey.split(",") : [];
+    return computeDfsClassification(ids, edges, mode);
+  }, [nodeIdKey, edgeKey, mode]);
 
   const deleteNode = useCallback((id: string) => {
     setNodes((prev) => prev.filter((n) => n.id !== id));
@@ -101,7 +134,7 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
       ignoreNextBgClick.current = false;
       return;
     }
-    if (e.target !== e.currentTarget) return;
+    if (e.target !== e.currentTarget) return; 
     if (linkingFrom) {
       setLinkingFrom(null);
       return;
@@ -160,6 +193,7 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
       moved: false,
     };
   };
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const rect = wrapRef.current?.getBoundingClientRect();
@@ -306,6 +340,7 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
           const showForward = edge.forward;
           const showBackward = edge.backward && isDirected;
           const isHovered = hoverEdge === edge.id;
+          const cls = dfs.edgeClass[edge.id];
 
           return (
             <g key={edge.id}>
@@ -402,6 +437,73 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
                   }}
                 />
               )}
+
+              {showClassification && !isDirected && cls?.forwardType && (
+                (() => {
+                  const meta = EDGE_TYPE_META[cls.forwardType!];
+                  const p = perpOffset(ax, ay, bx, by, 14);
+                  return (
+                    <g pointerEvents="none">
+                      <circle cx={p.x} cy={p.y} r={10} fill="white" stroke={meta.color} strokeWidth={2} />
+                      <text
+                        x={p.x}
+                        y={p.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={11}
+                        fontWeight="bold"
+                        fill={meta.color}
+                      >
+                        {meta.letter}
+                      </text>
+                    </g>
+                  );
+                })()
+              )}
+              {showClassification && isDirected && showForward && cls?.forwardType && (
+                (() => {
+                  const meta = EDGE_TYPE_META[cls.forwardType!];
+                  const p = perpOffset(ax, ay, bx, by, -14);
+                  return (
+                    <g pointerEvents="none">
+                      <circle cx={p.x} cy={p.y} r={10} fill="white" stroke={meta.color} strokeWidth={2} />
+                      <text
+                        x={p.x}
+                        y={p.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={11}
+                        fontWeight="bold"
+                        fill={meta.color}
+                      >
+                        {meta.letter}
+                      </text>
+                    </g>
+                  );
+                })()
+              )}
+              {showClassification && isDirected && showBackward && cls?.backwardType && (
+                (() => {
+                  const meta = EDGE_TYPE_META[cls.backwardType!];
+                  const p = perpOffset(ax, ay, bx, by, 14);
+                  return (
+                    <g pointerEvents="none">
+                      <circle cx={p.x} cy={p.y} r={10} fill="white" stroke={meta.color} strokeWidth={2} />
+                      <text
+                        x={p.x}
+                        y={p.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={11}
+                        fontWeight="bold"
+                        fill={meta.color}
+                      >
+                        {meta.letter}
+                      </text>
+                    </g>
+                  );
+                })()
+              )}
             </g>
           );
         })}
@@ -429,34 +531,50 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
           const isLinking = linkingFrom === node.id;
           const isHover = hoverNode === node.id;
           const isDragging = draggingId === node.id;
+          const d = dfs.discovery[node.id];
+          const f = dfs.finish[node.id];
           return (
-            <g
-              key={node.id}
-              onMouseDown={(e) => handleNodeMouseDown(e, node)}
-              onMouseEnter={() => setHoverNode(node.id)}
-              onMouseLeave={() => setHoverNode((cur) => (cur === node.id ? null : cur))}
-              className={isDragging ? "cursor-grabbing" : "cursor-grab"}
-            >
-              <circle
-                cx={node.x}
-                cy={node.y}
-                r={NODE_RADIUS}
-                fill={isHover ? "var(--node-fill-hover)" : "var(--node-fill)"}
-                stroke="var(--ink)"
-                strokeWidth={isLinking ? 4 : 3}
-                strokeDasharray={isLinking ? "5 4" : undefined}
-              />
-              <text
-                x={node.x}
-                y={node.y}
-                textAnchor="middle"
-                dominantBaseline="central"
-                className="font-hand select-none"
-                fontSize={30}
-                fill="var(--ink)"
+            <g key={node.id}>
+              {showTimes && d !== undefined && f !== undefined && (
+                <text
+                  x={node.x}
+                  y={node.y - NODE_RADIUS - 12}
+                  textAnchor="middle"
+                  fontSize={13}
+                  fontWeight="bold"
+                  fill="var(--ink)"
+                  pointerEvents="none"
+                >
+                  [{d}, {f}]
+                </text>
+              )}
+              <g
+                onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                onMouseEnter={() => setHoverNode(node.id)}
+                onMouseLeave={() => setHoverNode((cur) => (cur === node.id ? null : cur))}
+                className={isDragging ? "cursor-grabbing" : "cursor-grab"}
               >
-                {node.label}
-              </text>
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r={NODE_RADIUS}
+                  fill={isHover ? "var(--node-fill-hover)" : "var(--node-fill)"}
+                  stroke="var(--ink)"
+                  strokeWidth={isLinking ? 4 : 3}
+                  strokeDasharray={isLinking ? "5 4" : undefined}
+                />
+                <text
+                  x={node.x}
+                  y={node.y}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className="font-hand select-none"
+                  fontSize={30}
+                  fill="var(--ink)"
+                >
+                  {node.label}
+                </text>
+              </g>
             </g>
           );
         })}
@@ -479,3 +597,5 @@ export default function GraphCanvas({ mode, layoutMode, onStats }: Props) {
     </div>
   );
 }
+
+export { EDGE_TYPE_META };
