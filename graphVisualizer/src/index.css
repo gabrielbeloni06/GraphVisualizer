@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --paper: #faf7f0;
+  --ink: #1a1a1a;
+  --node-fill: #fbc9d2;
+  --node-fill-hover: #f7b3c0;
+  --edge-glow: #dce8f7;
+  --dot: #d9d4c8;
+  --accent: #e8a94a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.font-hand {
+  font-family: 'Caveat', cursive;
+}
+
+.bg-dots {
+  background-image: radial-gradient(var(--dot) 2.2px, transparent 2.2px);
+  background-size: 34px 34px;
+}
